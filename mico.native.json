@@ -1,0 +1,7 @@
+{
+  "name": "mico.native",
+  "description": "native mico",
+  "path": ".\\mico-native.exe",
+  "type": "stdio",
+  "allowed_extensions": ["{d70b3441-5892-45aa-b214-4c67086a623f}"]
+}
