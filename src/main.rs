@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write, stdin, stdout};
@@ -12,6 +12,9 @@ use serde_json::json;
 struct Message {
     path: String,
 }
+
+// 約1MB
+const MAX_RESPONSE_SIZE: usize = 1_000_000;
 
 fn main() {
     if let Err(error) = run() {
@@ -65,6 +68,10 @@ fn read_message() -> Result<Vec<u8>> {
 }
 
 fn write_message(body: &[u8]) -> Result<()> {
+    if body.len() > MAX_RESPONSE_SIZE {
+        return Err(anyhow!("レスポンスの大きさが上限を超えています"));
+    }
+
     let len = body.len() as u32;
     let header = len.to_le_bytes();
 
