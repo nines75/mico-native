@@ -39,10 +39,12 @@ fn run() -> Result<()> {
         let mut map = HashMap::new();
 
         for file in files {
-            let path = base_path.join(format!("{file}.txt"));
+            for extension in ["txt", "mico"] {
+                let path = base_path.join(format!("{file}.{extension}"));
 
-            if let Ok(content) = fs::read_to_string(path) {
-                map.insert(file.to_lower_camel_case(), content);
+                if let Ok(content) = fs::read_to_string(path) {
+                    map.insert(file.to_lower_camel_case(), content);
+                }
             }
         }
 
