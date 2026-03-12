@@ -3,14 +3,17 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write, stdin, stdout};
 use std::path::Path;
+use std::process::Command;
 
 use heck::ToLowerCamelCase;
 use serde::Deserialize;
 use serde_json::json;
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Message {
     path: String,
+    should_check_wsl: bool,
 }
 
 // 約1MB
@@ -26,6 +29,13 @@ fn run() -> Result<()> {
     loop {
         // 入力を読み取ってデシリアライズ
         let message: Message = serde_json::from_slice(&read_message()?)?;
+
+        // WSLが起動していない場合はフィルターの読み取りをキャンセル
+        if message.should_check_wsl && !is_wsl_running()? {
+            write_message(&serde_json::to_vec(&json!({}))?)?;
+
+            continue;
+        }
 
         let files = [
             "ng-user-id",
@@ -49,7 +59,7 @@ fn run() -> Result<()> {
         }
 
         // jsonに変換して書き込み
-        write_message(&serde_json::to_vec(&json!(map))?)?;
+        write_message(&serde_json::to_vec(&json!({"settings": map}))?)?;
     }
 }
 
@@ -83,4 +93,13 @@ fn write_message(body: &[u8]) -> Result<()> {
     stdout().flush()?;
 
     Ok(())
+}
+
+fn is_wsl_running() -> Result<bool> {
+    let output = Command::new("wsl")
+        .args(["--list", "--running", "--quiet"])
+        .output()?;
+
+    // 出力が空でないなら起動している
+    Ok(output.status.success() && !output.stdout.is_empty())
 }
