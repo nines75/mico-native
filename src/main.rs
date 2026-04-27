@@ -5,7 +5,6 @@ use std::io::{Read, Write, stdin, stdout};
 use std::path::Path;
 use std::process::Command;
 
-use heck::ToLowerCamelCase;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -37,25 +36,11 @@ fn run() -> Result<()> {
             continue;
         }
 
-        let files = [
-            "ng-user-id",
-            "ng-command",
-            "ng-word",
-            "ng-id",
-            "ng-user-name",
-            "ng-title",
-        ];
-        let base_path = Path::new(&message.path);
+        let path = Path::new(&message.path);
         let mut map = HashMap::new();
 
-        for file in files {
-            for extension in ["txt", "mico"] {
-                let path = base_path.join(format!("{file}.{extension}"));
-
-                if let Ok(content) = fs::read_to_string(path) {
-                    map.insert(file.to_lower_camel_case(), content);
-                }
-            }
+        if let Ok(content) = fs::read_to_string(path) {
+            map.insert("manualFilter", content);
         }
 
         // jsonに変換して書き込み
