@@ -4,15 +4,27 @@ use std::fs;
 use std::io::{Read, Write, stdin, stdout};
 use std::path::Path;
 use std::process::Command;
+use std::time::Duration;
 
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{Value, json};
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Message {
-    path: String,
-    should_check_wsl: bool,
+#[serde(rename_all = "camelCase", tag = "type")]
+enum Message {
+    #[serde(rename_all = "camelCase")]
+    ImportLocalFilter {
+        path: String,
+        should_check_wsl: bool,
+    },
+
+    #[serde(rename_all = "camelCase")]
+    SaveBackup {
+        path: String,
+        should_check_interval: bool,
+        interval_threshold: u64,
+        backup: HashMap<String, Value>,
+    },
 }
 
 // 約1MB
@@ -29,22 +41,55 @@ fn run() -> Result<()> {
         // 入力を読み取ってデシリアライズ
         let message: Message = serde_json::from_slice(&read_message()?)?;
 
-        // WSLが起動していない場合はフィルターの読み取りをキャンセル
-        if message.should_check_wsl && !is_wsl_running()? {
-            write_message(&serde_json::to_vec(&json!({}))?)?;
+        match message {
+            Message::ImportLocalFilter {
+                path,
+                should_check_wsl,
+            } => {
+                // WSLが起動していない場合はフィルターの読み取りをキャンセル
+                if should_check_wsl && !is_wsl_running()? {
+                    write_message(&serde_json::to_vec(&json!({}))?)?;
 
-            continue;
+                    continue;
+                }
+
+                let path = Path::new(&path);
+                let mut map = HashMap::new();
+
+                if let Ok(content) = fs::read_to_string(path) {
+                    map.insert("manualFilter", content);
+                }
+
+                // jsonに変換して書き込み
+                write_message(&serde_json::to_vec(&json!({"settings": map}))?)?;
+            }
+            Message::SaveBackup {
+                path,
+                should_check_interval,
+                interval_threshold,
+                backup,
+            } => {
+                let path = Path::new(&path);
+                if !path.is_dir() {
+                    return Err(anyhow!("指定されたディレクトリは存在しません"));
+                }
+
+                let path = path.join("mico-backup.json");
+                if should_check_interval && path.is_file() {
+                    let interval = path.metadata()?.modified()?.elapsed()?;
+                    if interval <= Duration::from_hours(interval_threshold) {
+                        write_message(&serde_json::to_vec(&json!({"status": "skipped"}))?)?;
+
+                        continue;
+                    }
+                }
+
+                // バックアップ書き出し
+                fs::write(path, serde_json::to_string(&backup)?)?;
+
+                write_message(&serde_json::to_vec(&json!({ "status": "completed" }))?)?;
+            }
         }
-
-        let path = Path::new(&message.path);
-        let mut map = HashMap::new();
-
-        if let Ok(content) = fs::read_to_string(path) {
-            map.insert("manualFilter", content);
-        }
-
-        // jsonに変換して書き込み
-        write_message(&serde_json::to_vec(&json!({"settings": map}))?)?;
     }
 }
 
