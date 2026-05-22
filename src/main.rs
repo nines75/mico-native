@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use Response::*;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -71,15 +71,11 @@ fn run() -> Result<()> {
                 }
 
                 let path = Path::new(&path);
-                let mut map = HashMap::new();
-
-                if let Ok(content) = fs::read_to_string(path) {
-                    map.insert("manualFilter", content);
-                }
+                let content = fs::read_to_string(path)?;
 
                 // jsonに変換して書き込み
                 write_response(Completed {
-                    data: Some(serde_json::to_value(map)?),
+                    data: Some(json!({ "manualFilter": content })),
                 })?;
             }
             Request::SaveBackup {
@@ -89,9 +85,6 @@ fn run() -> Result<()> {
                 backup,
             } => {
                 let path = Path::new(&path);
-                if !path.is_dir() {
-                    return Err(anyhow!("指定されたディレクトリは存在しません"));
-                }
 
                 let path = path.join("mico-backup.json");
                 if should_check_interval && path.is_file() {
