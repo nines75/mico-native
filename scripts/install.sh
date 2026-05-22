@@ -3,7 +3,7 @@
 ROOT="$(git rev-parse --show-toplevel)"
 source $ROOT/scripts/config.sh
 
-cargo build --target x86_64-pc-windows-gnu --release
+cargo build --target x86_64-pc-windows-gnu --release || exit 1
 
 powershell.exe -ExecutionPolicy Bypass -File $ROOT/scripts/stop.ps1
 
