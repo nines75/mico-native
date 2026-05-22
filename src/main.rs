@@ -6,12 +6,13 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
-use serde::Deserialize;
-use serde_json::{Value, json};
+use Response::*;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
-enum Message {
+enum Request {
     #[serde(rename_all = "camelCase")]
     ImportLocalFilter {
         path: String,
@@ -27,28 +28,44 @@ enum Message {
     },
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase", tag = "status")]
+enum Response {
+    Completed {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        data: Option<Value>,
+    },
+    Failed {
+        error: String,
+    },
+    Skipped,
+}
+
 // 約1MB
 const MAX_RESPONSE_SIZE: usize = 1_000_000;
 
 fn main() {
     if let Err(error) = run() {
-        eprintln!("{error}");
+        write_response(Failed {
+            error: format!("{error:?}"),
+        })
+        .unwrap();
     }
 }
 
 fn run() -> Result<()> {
     loop {
         // 入力を読み取ってデシリアライズ
-        let message: Message = serde_json::from_slice(&read_message()?)?;
+        let request: Request = serde_json::from_slice(&read_request()?)?;
 
-        match message {
-            Message::ImportLocalFilter {
+        match request {
+            Request::ImportLocalFilter {
                 path,
                 should_check_wsl,
             } => {
                 // WSLが起動していない場合はフィルターの読み取りをキャンセル
                 if should_check_wsl && !is_wsl_running()? {
-                    write_message(&serde_json::to_vec(&json!({}))?)?;
+                    write_response(Skipped)?;
 
                     continue;
                 }
@@ -61,9 +78,11 @@ fn run() -> Result<()> {
                 }
 
                 // jsonに変換して書き込み
-                write_message(&serde_json::to_vec(&json!({"settings": map}))?)?;
+                write_response(Completed {
+                    data: Some(serde_json::to_value(map)?),
+                })?;
             }
-            Message::SaveBackup {
+            Request::SaveBackup {
                 path,
                 should_check_interval,
                 interval_threshold,
@@ -78,7 +97,7 @@ fn run() -> Result<()> {
                 if should_check_interval && path.is_file() {
                     let interval = path.metadata()?.modified()?.elapsed()?;
                     if interval <= Duration::from_hours(interval_threshold) {
-                        write_message(&serde_json::to_vec(&json!({"status": "skipped"}))?)?;
+                        write_response(Skipped)?;
 
                         continue;
                     }
@@ -87,13 +106,13 @@ fn run() -> Result<()> {
                 // バックアップ書き出し
                 fs::write(path, serde_json::to_string(&backup)?)?;
 
-                write_message(&serde_json::to_vec(&json!({ "status": "completed" }))?)?;
+                write_response(Completed { data: None })?;
             }
         }
     }
 }
 
-fn read_message() -> Result<Vec<u8>> {
+fn read_request() -> Result<Vec<u8>> {
     // ヘッダーを読み込む(4バイトで固定)
     let mut header = [0u8; 4];
     stdin().read_exact(&mut header)?;
@@ -109,7 +128,9 @@ fn read_message() -> Result<Vec<u8>> {
     Ok(body)
 }
 
-fn write_message(body: &[u8]) -> Result<()> {
+fn write_response(response: Response) -> Result<()> {
+    let body = serde_json::to_vec(&response)?;
+
     if body.len() > MAX_RESPONSE_SIZE {
         return Err(anyhow!("レスポンスの大きさが上限を超えています"));
     }
@@ -119,7 +140,7 @@ fn write_message(body: &[u8]) -> Result<()> {
 
     // バイト列をそのまま書き込む
     stdout().write_all(&header)?;
-    stdout().write_all(body)?;
+    stdout().write_all(&body)?;
     stdout().flush()?;
 
     Ok(())
