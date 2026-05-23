@@ -1,1 +1,0 @@
-Stop-Process -Name "mico-native" -ErrorAction SilentlyContinue
