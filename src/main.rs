@@ -20,6 +20,9 @@ enum Request {
     },
 
     #[serde(rename_all = "camelCase")]
+    UpdateLocalFilter { path: String, filter: String },
+
+    #[serde(rename_all = "camelCase")]
     SaveBackup {
         path: String,
         should_check_interval: bool,
@@ -77,6 +80,11 @@ fn run() -> Result<()> {
                 write_response(Completed {
                     data: Some(json!({ "manualFilter": content })),
                 })?;
+            }
+            Request::UpdateLocalFilter { path, filter } => {
+                fs::write(path, filter)?;
+
+                write_response(Completed { data: None })?;
             }
             Request::SaveBackup {
                 path,
