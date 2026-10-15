@@ -73,7 +73,6 @@ fn run() -> Result<()> {
                     continue;
                 }
 
-                let path = Path::new(&path);
                 let content = fs::read_to_string(path)?;
 
                 // jsonに変換して書き込み
