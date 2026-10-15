@@ -66,7 +66,7 @@ fn run() -> Result<()> {
                 path,
                 should_check_wsl,
             } => {
-                // WSLが起動していない場合はフィルターの読み取りをキャンセル
+                // WSLが起動していない場合はスキップ
                 if should_check_wsl && !is_wsl_running()? {
                     write_response(Skipped)?;
 
@@ -82,6 +82,13 @@ fn run() -> Result<()> {
                 })?;
             }
             Request::UpdateLocalFilter { path, filter } => {
+                // 変更がない場合はスキップ
+                if fs::read_to_string(&path).is_ok_and(|content| content == filter) {
+                    write_response(Skipped)?;
+
+                    continue;
+                };
+
                 fs::write(path, filter)?;
 
                 write_response(Completed { data: None })?;
