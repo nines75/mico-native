@@ -4,7 +4,7 @@ ROOT="$(git rev-parse --show-toplevel)"
 source $ROOT/scripts/config.sh
 
 # プロセス停止
-powershell.exe -Command "Stop-Process -Name 'mico-native' -ErrorAction SilentlyContinue"
+powershell.exe -Command "Stop-Process -Name '$APP_NAME' -ErrorAction SilentlyContinue"
 
 # バイナリ削除
 rm -rf $INSTALL_PATH
